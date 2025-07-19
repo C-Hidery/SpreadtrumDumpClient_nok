@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>SpreadtrumDumpClient</RootNamespace>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>False</UseWindowsForms>
+    <ApplicationIcon>flash.ico</ApplicationIcon>
+    <ImportedNamespaces>ModernWpf=False,ModernWpf.Automation.Peers=False,ModernWpf.Controls=False,ModernWpf.Controls.Primitives=False,ModernWpf.DesignTime=False,ModernWpf.Markup=False,ModernWpf.Media.Animation=False,ModernWpf.Navigation=False,System.Windows=False,System.Windows.Controls=False,System.Windows.Data=False,System.Windows.Documents=False,System.Windows.Input=False,System.Windows.Media=False,System.Windows.Media.Imaging=False,System.Windows.Navigation=False,System.Windows.Shapes=False,Microsoft.VisualBasic=True,System=True,System.Collections=True,System.Collections.Generic=True,System.Diagnostics=True,System.Linq=True,System.Xml.Linq=True,System.Threading.Tasks=True,SpreadtrumDumpClient=True</ImportedNamespaces>
+    <Version>0.2.0.1</Version>
+    <Authors>Ryan Crepa</Authors>
+    <Company>Ryan Crepa All Rights Reserved</Company>
+    <Copyright>Ryan Crepa All Rights Reserved</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="example.png" />
+    <None Remove="flash.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="flash.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Import Include="ModernWpf" />
+    <Import Include="ModernWpf.Automation.Peers" />
+    <Import Include="ModernWpf.Controls" />
+    <Import Include="ModernWpf.Controls.Primitives" />
+    <Import Include="ModernWpf.DesignTime" />
+    <Import Include="ModernWpf.Markup" />
+    <Import Include="ModernWpf.Media.Animation" />
+    <Import Include="ModernWpf.Navigation" />
+    <Import Include="System.Windows" />
+    <Import Include="System.Windows.Controls" />
+    <Import Include="System.Windows.Data" />
+    <Import Include="System.Windows.Documents" />
+    <Import Include="System.Windows.Input" />
+    <Import Include="System.Windows.Media" />
+    <Import Include="System.Windows.Media.Imaging" />
+    <Import Include="System.Windows.Navigation" />
+    <Import Include="System.Windows.Shapes" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModernWpfUI" Version="0.9.6" />
+    <PackageReference Include="System.Management" Version="9.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SPRDClientCore-master\SPRDClientCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="example.png" />
+    <Resource Include="flash.png" />
+  </ItemGroup>
+
+</Project>

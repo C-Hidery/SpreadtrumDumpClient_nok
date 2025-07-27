@@ -1,4 +1,5 @@
-﻿Imports System.Collections.Specialized
+﻿Imports System.Collections.Generic
+Imports System.Collections.Specialized
 Imports System.IO
 Imports System.IO.Ports
 Imports System.Runtime.InteropServices.JavaScript.JSType
@@ -7,14 +8,14 @@ Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports System.Threading.Thread
 Imports System.Windows.Threading
+Imports System.Xml.Linq
 Imports Microsoft.Win32
 Imports SPRDClientCore.Models
+Imports SPRDClientCore.Models.SprdExceptions
 'Imports SPRDClientCore.Program
 Imports SPRDClientCore.Protocol
 Imports SPRDClientCore.Protocol.Encoders
 Imports SPRDClientCore.Utils
-Imports System.Collections.Generic
-Imports System.Xml.Linq
 
 'Imports SpreadtrumDumpClient.SprdFlashBinary
 
@@ -31,13 +32,14 @@ Public Class MainWindow
     Public sprdmode As String
     Private portName_dl As String = "SPRD U2S Diag"
     Public partitionName As String
-    Private Date_1 = $"[{DateTime.Now:HH:mm:ss}]"
+    ' Private Date_1 = $"[{DateTime.Now:HH:mm:ss}]"
     'Private round As Integer = 0
     ' Private FDL_sent As Boolean
     '  Private OP_flag As Boolean
     Private utils As SPRDClientCore.Utils.SprdFlashUtils
     Public partitions As (List(Of Partition), GetPartitionsMethod)
     Public isSPRD4NoFDL As Boolean = False
+    Public cmd As CmdInvoke
 
     Private Sub Form1_Loaded(sender As Object, e As RoutedEventArgs)
 start_1:
@@ -71,13 +73,25 @@ start_1:
         Await Task.Run(Sub()
 
                            Try
-                               AppendToOutput($"{Date_1} Begin to boot...({timeout2}s)")
-                               AppendToOutput($"{Date_1} Based on SPRDClientCore 1.0.1.0")
+                               AppendToOutput($"[{DateTime.Now:HH:mm:ss}] Begin to boot...({timeout2}s)")
+                               AppendToOutput($"[{DateTime.Now:HH:mm:ss}] Based on SPRDClientCore 1.2.0.0")
                                port = SprdProtocolHandler.FindComPort(timeout:=timeout1)
                                DEG_LOG($"Find port: {port}", "I")
+                               Write_con($"Find port {port} , connecting...")
                                Dim handler As New SprdProtocolHandler(port, New HdlcEncoder())
                                utils = New SprdFlashUtils(handler)
+                               Dim monitor As New ComPortMonitor(port)
+
+                               monitor.SetDisconnectedAction(Sub()
+                                                                 monitor.Stop()
+
+                                                                 Disable_buttons()
+                                                             End Sub)
                                AddHandler utils.UpdatePercentage, AddressOf UpdateProgressInvoke
+                               AddHandler utils.UpdateStatus, AddressOf UpdateOnLog
+                               AddHandler utils.Log, AddressOf UpdateOnLog
+                               AddHandler utils.UpdateWinSpeed, AddressOf UpdateSpeed
+                               AddHandler utils.UpdateWinTime, AddressOf UpdateTime
                                If Not sprd4_1 Then
                                    stage = utils.ConnectToDevice()
                                Else
@@ -149,12 +163,13 @@ start_1:
                                                       End Sub)
 
                                Thread.Sleep(5000)
+                               '超时须退出而不是继续
                                Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
-                           Catch ex2 As ExceptionDefinitions.ResponseTimeoutReachedException
+                           Catch ex2 As UnexceptedResponseException
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
-                                                                                                                                                    .Title = "No response",
-                                                                                                                                                    .Content = $"Can not connect to device: timeout!!! Exiting...{Environment.NewLine} 连接失败:超时，退出中...{Environment.NewLine} {ex2.Message}",
+                                                                                                                                                    .Title = "Incorrect or empty response",
+                                                                                                                                                    .Content = $"Can not connect to device: Wrong response, exiting...{Environment.NewLine} 连接失败:错误的响应，退出中..{Environment.NewLine} {ex2.Message}",
                                                                                                                                                     .PrimaryButtonText = "OK",
                                                                                                                                                     .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                 }
@@ -163,12 +178,13 @@ start_1:
                                                       End Sub)
 
                                Thread.Sleep(5000)
+
                                Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
                            Catch ex3 As System.IO.IOException
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
                                                                                                                                                     .Title = "Emm",
-                                                                                                                                                    .Content = $"{ex3.Message}{Environment.NewLine} Exiting...  退出中...",
+                                                                                                                                                    .Content = $"{ex3.Message}{Environment.NewLine} Exiting...   退出中...",
                                                                                                                                                     .PrimaryButtonText = "OK",
                                                                                                                                                     .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                 }
@@ -177,6 +193,7 @@ start_1:
                                                       End Sub)
 
                                Thread.Sleep(5000)
+
                                Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
                            End Try
                            If device_mode = Stages.Brom Then
@@ -225,7 +242,7 @@ Exec:
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
                                                                                                                                                     .Title = "Failed to connect",
-                                                                                                                                                    .Content = $"Can not connect to device: Unknown error. Exiting...{Environment.NewLine} 连接失败:未知错误，退出中...",
+                                                                                                                                                    .Content = $"Can not connect to device: Unknown exception. exiting...{Environment.NewLine} 连接失败:未知错误，退出中...",
                                                                                                                                                     .PrimaryButtonText = "OK",
                                                                                                                                                     .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                 }
@@ -234,6 +251,7 @@ Exec:
                                                       End Sub)
 
                                Thread.Sleep(5000)
+
                                Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
                            End If
                        End Sub)
@@ -242,41 +260,21 @@ Exec:
 
     End Sub
 
+    Public Sub UpdateSpeed(speed As String)
+        Dispatcher.BeginInvoke(Sub()
+                                   speedtext.Content = $"{speed} MB/s"
+                               End Sub)
 
-
-
-
-    Public Sub LoadPartitionsFromXml(filePath As String, ByRef partitions As List(Of Partition))
-        ' 确保列表已初始化
-        partitions = If(partitions, New List(Of Partition)())
-
-        ' 加载XML文档
-        Dim xmlDoc As XDocument = XDocument.Load(filePath)
-
-        ' 查找所有Partition节点
-        Dim partitionNodes = xmlDoc.Descendants("Partition")
-
-        For Each partNode In partitionNodes
-            ' 提取分区名称 (id属性)
-            Dim partitionName = partNode.Attribute("id")?.Value
-
-            ' 提取并转换大小 (size属性)
-            Dim sizeText = partNode.Attribute("size")?.Value
-            If Not String.IsNullOrWhiteSpace(sizeText) AndAlso
-           Not String.IsNullOrWhiteSpace(partitionName) Then
-
-                ' 解析大小并转换为字节 (MB * 1024 * 1024)
-                Dim sizeMB As Double
-                If Double.TryParse(sizeText, sizeMB) Then
-                    Dim partition As New Partition With {
-                    .Name = partitionName,
-                    .Size = CULng(sizeMB * 1024 * 1024) ' 转换为字节
-                }
-                    partitions.Add(partition)
-                End If
-            End If
-        Next
     End Sub
+    Public Sub UpdateTime(time As String)
+        Dispatcher.BeginInvoke(Sub()
+                                   timetext.Content = $"Need 剩余: {time}s"
+                               End Sub)
+
+    End Sub
+
+
+
 
 
 
@@ -328,18 +326,18 @@ Exec:
 
         If str = "I" Then
 
-            Debug.WriteLine($"{Date_1} [INFO] {Text}")
-            AppendToOutput($"{Date_1} [INFO] {Text}")
+            Debug.WriteLine($"[{DateTime.Now:HH:mm:ss}] [INFO] {Text}")
+            AppendToOutput($"[{DateTime.Now:HH:mm:ss}] [INFO] {Text}")
         End If
         If str = "W" Then
 
-            Debug.WriteLine($"{Date_1} [WARN] {Text}")
-            AppendToOutput($"{Date_1} [WARN] {Text}")
+            Debug.WriteLine($"[{DateTime.Now:HH:mm:ss}] [WARN] {Text}")
+            AppendToOutput($"[{DateTime.Now:HH:mm:ss}] [WARN] {Text}")
         End If
         If str = "E" Then
 
-            Debug.WriteLine($"{Date_1} [ERROR] {Text}")
-            AppendToOutput($"{Date_1} [ERROR] {Text}")
+            Debug.WriteLine($"[{DateTime.Now:HH:mm:ss}] [ERROR] {Text}")
+            AppendToOutput($"[{DateTime.Now:HH:mm:ss}] [ERROR] {Text}")
         End If
     End Sub
     '引导完成，初始化
@@ -356,97 +354,94 @@ Exec:
         Dim addr = fdl_addr.Text
         Dim cve = exec_addr.IsOn
         Dim cve_path_1 = cve_addr.Text
-        Dim fileName As String = Path.GetFileNameWithoutExtension(cve_path_1)
-        Dim lastUnderscorePos As Integer = fileName.LastIndexOf("_"c)
-
-        ' 提取下划线后的8个字符
-        Dim result As String = ""
-        If lastUnderscorePos > 0 AndAlso lastUnderscorePos + 8 < fileName.Length Then
-            result = fileName.Substring(lastUnderscorePos + 1, 8)
-        End If
-        Dim cve_addr_1 = "0x" + result
+        Dim cve_addr_1 = cve_addr_c.Text
         Await Task.Run(Sub()
-                           Dim fs As FileStream = File.OpenRead(file1)
-                           Try
+                           Using fs As FileStream = File.OpenRead(file1)
+                               Try
 
-                               If device_mode = Stages.Brom Then
+                                   If device_mode = Stages.Brom Then
 
-                                   If Not cve Then
+                                       If Not cve Then
+                                           utils.SendFile(fs, startAddress:=SprdFlashUtils.StringToSize(addr))
+                                           utils.ExecuteDataAndConnect(Stages.Brom)
+                                       Else
+                                           utils.SendFile(fs, startAddress:=SprdFlashUtils.StringToSize(addr))
+                                           Using ft As FileStream = File.OpenRead(cve_path_1)
+                                               utils.SendFile(ft, startAddress:=SprdFlashUtils.StringToSize(cve_addr_1))
+                                           End Using
+                                           utils.ExecuteDataAndConnect(Stages.Brom)
+                                       End If
+
+                                   ElseIf device_mode = Stages.Fdl1 Then
                                        utils.SendFile(fs, startAddress:=SprdFlashUtils.StringToSize(addr))
-                                       utils.ExecuteDataAndConnect(Stages.Brom)
-                                   Else
-                                       utils.SendFile(fs, startAddress:=SprdFlashUtils.StringToSize(addr))
-                                       Dim ft As FileStream = File.OpenRead(cve_path_1)
-                                       utils.SendFile(ft, startAddress:=SprdFlashUtils.StringToSize(cve_addr_1))
-                                       utils.ExecuteDataAndConnect(Stages.Brom)
+                                       utils.ExecuteDataAndConnect(Stages.Fdl1)
+
                                    End If
 
-                               ElseIf device_mode = Stages.Fdl1 Then
-                                   utils.SendFile(fs, startAddress:=SprdFlashUtils.StringToSize(addr))
-                                   utils.ExecuteDataAndConnect(Stages.Fdl1)
+                                   If Not FDL1_Loaded Then
+                                       device_mode = Stages.Fdl1
+                                       FDL1_Loaded = True
+                                       Dispatcher.BeginInvoke(Sub()
+                                                                  Dim dialog = New ContentDialog() With {
+                                                                                                                                                                                                                 .Title = "Successfully execute FDL1!",
+                                                                                                                                                                                                                 .Content = $"Successfully execute FDL1, please execute FDL2!{Environment.NewLine} 引导FDL1成功，请发送FDL2！",
+                                                                                                                                                                                                                 .PrimaryButtonText = "OK",
+                                                                                                                                                                                                                 .DefaultButton = ContentDialogButton.Primary
+                                                                                                                                                                                                             }
+                                                                  dialog.ShowAsync()
+                                                              End Sub)
+                                       Write_con("Please execute FDL2!")
+                                       Write_mode($"FDL1: Sprd{sprdmode}")
+                                       AppendToOutput("Device mode: FDL1")
+                                   ElseIf Not FDL2_Executed Then
+                                       device_mode = Stages.Fdl2
+                                       FDL2_Executed = True
+                                       Dispatcher.BeginInvoke(Sub()
+                                                                  Dim dialog = New ContentDialog() With {
+                                                                                                                                                                                                                 .Title = "Successfully booted!",
+                                                                                                                                                                                                                 .Content = $"Successfully booted, please operate!{Environment.NewLine} 引导设备成功，请操作！",
+                                                                                                                                                                                                                 .PrimaryButtonText = "OK",
+                                                                                                                                                                                                                 .DefaultButton = ContentDialogButton.Primary
+                                                                                                                                                                                                             }
+                                                                  dialog.ShowAsync()
+                                                              End Sub)
+                                       Write_con("Successfully booted")
+                                       Write_mode($"FDL2: Sprd{sprdmode}")
+                                       AppendToOutput("Device mode: FDL2")
+                                       Set_Title1()
+                                       Enable_buttons()
+                                       Init_fdl2()
+                                   End If
 
-                               End If
-
-                               If Not FDL1_Loaded Then
-                                   device_mode = Stages.Fdl1
-                                   FDL1_Loaded = True
+                               Catch ex1 As UnexceptedResponseException
                                    Dispatcher.BeginInvoke(Sub()
                                                               Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                             .Title = "Successfully execute FDL1!",
-                                                                                                                                                                                                             .Content = $"Successfully execute FDL1, please execute FDL2!{Environment.NewLine} 引导FDL1成功，请发送FDL2！",
+                                                                                                                                                                                                             .Title = "Can not execute",
+                                                                                                                                                                                                             .Content = $"Response not correct, operation disabled{Environment.NewLine} 响应不正确,操作已禁用{Environment.NewLine}{ex1.Message}",
                                                                                                                                                                                                              .PrimaryButtonText = "OK",
                                                                                                                                                                                                              .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                          }
                                                               dialog.ShowAsync()
                                                           End Sub)
-                                   Write_con("Please execute FDL2!")
-                                   Write_mode($"FDL1: Sprd{sprdmode}")
-                               ElseIf Not FDL2_Executed Then
-                                   device_mode = Stages.Fdl2
-                                   FDL2_Executed = True
+                                   Thread.Sleep(5000)
+
+                                   Disable_buttons()
+                               Catch ex2 As Exception
                                    Dispatcher.BeginInvoke(Sub()
                                                               Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                             .Title = "Successfully booted!",
-                                                                                                                                                                                                             .Content = $"Successfully booted, please operate!{Environment.NewLine} 引导设备成功，请操作！",
+                                                                                                                                                                                                             .Title = "Emm...",
+                                                                                                                                                                                                             .Content = $"{ex2.Message}{Environment.NewLine}Operation disabled  操作已禁用",
                                                                                                                                                                                                              .PrimaryButtonText = "OK",
                                                                                                                                                                                                              .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                          }
                                                               dialog.ShowAsync()
+
                                                           End Sub)
-                                   Write_con("Successfully booted")
-                                   Write_mode($"FDL2: Sprd{sprdmode}")
-                                   Set_Title1()
-                                   Enable_buttons()
-                                   Init_fdl2()
-                               End If
+                                   Thread.Sleep(5000)
 
-                           Catch ex1 As ExceptionDefinitions.UnexceptedResponseException
-                               Dispatcher.BeginInvoke(Sub()
-                                                          Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                         .Title = "Can not execute",
-                                                                                                                                                                                                         .Content = $"Response not correct, exiting...{Environment.NewLine} 响应不正确,退出中...{Environment.NewLine}{ex1.Message}",
-                                                                                                                                                                                                         .PrimaryButtonText = "OK",
-                                                                                                                                                                                                         .DefaultButton = ContentDialogButton.Primary
-                                                                                                                                                                                                     }
-                                                          dialog.ShowAsync()
-                                                      End Sub)
-                               Thread.Sleep(5000)
-                               Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
-                           Catch ex2 As Exception
-                               Dispatcher.BeginInvoke(Sub()
-                                                          Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                         .Title = "Emm...",
-                                                                                                                                                                                                         .Content = $"{ex2.Message}{Environment.NewLine}Exiting...  退出中...",
-                                                                                                                                                                                                         .PrimaryButtonText = "OK",
-                                                                                                                                                                                                         .DefaultButton = ContentDialogButton.Primary
-                                                                                                                                                                                                     }
-                                                          dialog.ShowAsync()
-
-                                                      End Sub)
-                               Thread.Sleep(5000)
-                               Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
-                           End Try
-
+                                   Disable_buttons()
+                               End Try
+                           End Using
 
                        End Sub)
 
@@ -544,6 +539,31 @@ Exec:
                                    set_active_b.IsEnabled = True
                                    start_repart.IsEnabled = True
                                    blk_size.IsEnabled = True
+                                   read_xml.IsEnabled = True
+                                   dmv_disable.IsEnabled = True
+                                   dmv_enable.IsEnabled = True
+                               End Sub)
+    End Sub
+    Public Sub Disable_buttons()
+        Dispatcher.BeginInvoke(Sub()
+                                   poweroff.IsEnabled = False
+                                   reboot.IsEnabled = False
+                                   recovery.IsEnabled = False
+                                   fastboot.IsEnabled = False
+                                   list_read.IsEnabled = False
+                                   list_write.IsEnabled = False
+                                   list_erase.IsEnabled = False
+                                   m_write.IsEnabled = False
+                                   m_read.IsEnabled = False
+                                   m_erase.IsEnabled = False
+                                   fdl_exec.IsEnabled = False
+                                   set_active_a.IsEnabled = False
+                                   set_active_b.IsEnabled = False
+                                   start_repart.IsEnabled = False
+                                   blk_size.IsEnabled = False
+                                   read_xml.IsEnabled = False
+                                   dmv_disable.IsEnabled = False
+                                   dmv_enable.IsEnabled = False
                                End Sub)
     End Sub
     Private Sub Write_con(text As String)
@@ -574,7 +594,7 @@ Exec:
     End Sub
     Public Sub AppendToOutput(text As String)
         If txtOutput Is Nothing Then
-            Debug.WriteLine("错误: 输出文本框未初始化")
+            Debug.WriteLine("Err: Log window not ready!")
             Return
         End If
 
@@ -607,18 +627,18 @@ Exec:
             Dim saveDialog As New SaveFileDialog()
 
             ' 设置对话框属性
-            saveDialog.Title = "导出日志文件"
-            saveDialog.Filter = "文本文件 (*.txt)|*.txt|日志文件 (*.log)|*.log|所有文件 (*.*)|*.*"
+            saveDialog.Title = "Save log"
+            saveDialog.Filter = "Text file(*.txt)|*.txt|Log (*.log)|*.log|All (*.*)|*.*"
             saveDialog.FilterIndex = 1
             saveDialog.DefaultExt = ".txt"
             saveDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-            saveDialog.FileName = $"Log0990_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
+            saveDialog.FileName = $"Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
             saveDialog.OverwritePrompt = True ' 覆盖提示
 
             ' 显示对话框
             If saveDialog.ShowDialog() <> True Then
                 ' 用户取消
-                AppendToOutput("导出已取消")
+                AppendToOutput("Cancelled")
                 Return False
             End If
 
@@ -632,12 +652,12 @@ Exec:
             File.WriteAllText(filePath, content, Encoding.UTF8)
 
             ' 显示成功消息
-            AppendToOutput($"日志已成功导出到: {filePath}")
+            AppendToOutput($"Successfully saved log to: {filePath}")
             Return True
 
         Catch ex As Exception
             ' 错误处理
-            AppendToOutput($"导出失败: {ex.Message}")
+            AppendToOutput($"Failed to save log: {ex.Message}")
             Return False
         End Try
     End Function
@@ -699,9 +719,9 @@ Exec:
         Dim openFileDialog As New OpenFileDialog()
 
         ' 设置对话框属性
-        openFileDialog.Title = "选择文件" ' 对话框标题
-        openFileDialog.Filter = "所有文件 (*.*)|*.*|二进制文件 (*.bin)|*.bin|镜像文件 (*.img)|*.img" ' 文件过滤器
-        openFileDialog.FilterIndex = 2 ' 默认选择第二个过滤器
+        openFileDialog.Title = "Select" ' 对话框标题
+        openFileDialog.Filter = "All (*.*)|*.*|Binary file (*.bin)|*.bin|Image file (*.img)|*.img" ' 文件过滤器
+        openFileDialog.FilterIndex = 3 ' 默认选择第三个过滤器
         openFileDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) ' 初始目录
         openFileDialog.Multiselect = False ' 禁用多选
 
@@ -716,37 +736,53 @@ Exec:
     End Function
 
     Private Sub exp_log_Click(sender As Object, e As RoutedEventArgs) Handles exp_log.Click
+
+
+
         ExportTextBoxContent(txtOutput)
+
+
     End Sub
 
 
 
-    Private Sub select_list_addr_Click(sender As Object, e As RoutedEventArgs) Handles select_list_addr.Click
-        list_file_addr.Text = ShowFileDialog()
-    End Sub
+
 
     Private Sub poweroff_Click(sender As Object, e As RoutedEventArgs) Handles poweroff.Click
         utils.ShutdownDevice()
-        Application.Current.Shutdown(0)
+        Thread.Sleep(1000)
+        'exp_log_Click(sender:=Nothing, e:=Nothing)
+        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
     End Sub
 
     Private Sub reboot_Click(sender As Object, e As RoutedEventArgs) Handles reboot.Click
         utils.PowerOnDevice()
+        Thread.Sleep(1000)
+        'exp_log_Click(sender:=Nothing, e:=Nothing)
+        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
     End Sub
 
     Private Sub recovery_Click(sender As Object, e As RoutedEventArgs) Handles recovery.Click
         utils.ResetToCustomMode(CustomModesToReset.Recovery)
+        utils.PowerOnDevice()
+        'exp_log_Click(sender:=Nothing, e:=Nothing)
+        Thread.Sleep(1000)
+        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
     End Sub
 
     Private Sub fastboot_Click(sender As Object, e As RoutedEventArgs) Handles fastboot.Click
         utils.ResetToCustomMode(CustomModesToReset.Fastboot)
+        utils.PowerOnDevice()
+        ' exp_log_Click(sender:=Nothing, e:=Nothing)
+        Thread.Sleep(1000)
+        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
     End Sub
     Public Function OutImageFileDiag(name As String)
         Dim saveDialog As New SaveFileDialog()
 
         ' 设置对话框属性
-        saveDialog.Title = "保存镜像文件"
-        saveDialog.Filter = "镜像文件（*.img）| *.img"
+        saveDialog.Title = "Save image"
+        saveDialog.Filter = "Image file（*.img）| *.img"
         saveDialog.FilterIndex = 1
         saveDialog.DefaultExt = ".img"
         saveDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
@@ -757,7 +793,7 @@ Exec:
         If saveDialog.ShowDialog() <> True Then
             ' 用户取消
             AppendToOutput("Cancelled")
-            Return False
+            Return Nothing
         Else
             Dim filePath As String = saveDialog.FileName
             Return filePath
@@ -770,21 +806,34 @@ Exec:
 
         Dispatcher.BeginInvoke(Sub()
                                    progressBar_1.Value = Percentage
-                                   AppendToOutput($"Progress: {Str(Percentage)}%")
+                                   percent.Content = $"{Percentage}%"
+                                   'AppendToOutput($"Progress: {Str(Percentage)}%")
+                                   If Percentage >= 100 Then
+                                       Thread.Sleep(1000)
+                                       progressBar_1.Value = 0
+                                       percent.Content = "0%"
+                                   End If
                                End Sub)
         '    End Sub)
     End Sub
+    Public Sub UpdateOnLog(text As String)
+        AppendToOutput($"[{DateTime.Now:HH:mm:ss}] {text}")
+    End Sub
     Private Async Sub list_write_Click(sender As Object, e As RoutedEventArgs) Handles list_write.Click
         Dim name As String = partitionName
-        Dim filepath As String = list_file_addr.Text
+        Dim filepath As String = ShowFileDialog()
+
         If name Is Nothing Then
+            Exit Sub
+        End If
+        If filepath Is Nothing Then
             Exit Sub
         End If
         Await Task.Run(Sub()
                            Try
-                               Dim fs As FileStream = File.OpenRead(filepath)
-                               utils.WritePartition(name, fs)
-
+                               Using fs As FileStream = File.OpenRead(filepath)
+                                   utils.WritePartition(name, fs)
+                               End Using
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                        .Title = "Success",
@@ -799,7 +848,7 @@ Exec:
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                        .Title = "Error",
-                                                                                                                                                                                                                                                                       .Content = $"Exception: '{ex.Message}' Exiting... {Environment.NewLine} 发生错误：‘{ex.Message}’退出中...",
+                                                                                                                                                                                                                                                                       .Content = $"Exception: '{ex.Message}' operation disabled {Environment.NewLine} 发生错误：‘{ex.Message}’操作被禁用",
                                                                                                                                                                                                                                                                        .PrimaryButtonText = "OK",
                                                                                                                                                                                                                                                                        .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                                                                                    }
@@ -807,7 +856,9 @@ Exec:
 
                                                       End Sub)
                                Thread.Sleep(5000)
-                               Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
+
+                               Disable_buttons()
+
                            End Try
 
                        End Sub)
@@ -816,11 +867,12 @@ Exec:
     Private Async Sub list_read_Click(sender As Object, e As RoutedEventArgs) Handles list_read.Click
         Dim name = partitionName
         Dim path = OutImageFileDiag(name)
-        If Not path = False Then
+        If path IsNot Nothing Then
             Await Task.Run(Sub()
                                Try
-                                   Dim fs As FileStream = File.Create($"{path}")
-                                   utils.ReadPartitionCustomize(fs, name, utils.GetPartitionSize(name))
+                                   Using fs As FileStream = File.Create($"{path}")
+                                       utils.ReadPartitionCustomize(fs, name, utils.GetPartitionSize(name))
+                                   End Using
                                    Dispatcher.BeginInvoke(Sub()
                                                               Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                            .Title = "Success",
@@ -835,7 +887,7 @@ Exec:
                                    Dispatcher.BeginInvoke(Sub()
                                                               Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                            .Title = "Error",
-                                                                                                                                                                                                                                                                           .Content = $"Exception: '{ex.Message}' Exiting... {Environment.NewLine} 发生错误：‘{ex.Message}’退出中...",
+                                                                                                                                                                                                                                                                           .Content = $"Exception: '{ex.Message}' operation disabled {Environment.NewLine} 发生错误：‘{ex.Message}’操作被禁用",
                                                                                                                                                                                                                                                                            .PrimaryButtonText = "OK",
                                                                                                                                                                                                                                                                            .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                                                                                        }
@@ -843,7 +895,8 @@ Exec:
 
                                                           End Sub)
                                    Thread.Sleep(5000)
-                                   Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
+
+                                   Disable_buttons()
                                End Try
 
 
@@ -875,8 +928,9 @@ Exec:
         Dim filepath = m_file_path.Text
         Await Task.Run(Sub()
                            Try
-                               Dim fs As FileStream = File.OpenRead(filepath)
-                               utils.WritePartition(name, fs)
+                               Using fs As FileStream = File.OpenRead(filepath)
+                                   utils.WritePartition(name, fs)
+                               End Using
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                        .Title = "Success",
@@ -891,7 +945,7 @@ Exec:
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                        .Title = "Error",
-                                                                                                                                                                                                                                                                       .Content = $"Exception: '{ex.Message}' Exiting... {Environment.NewLine} 发生错误：‘{ex.Message}’退出中...",
+                                                                                                                                                                                                                                                                       .Content = $"Exception: '{ex.Message}' operation disabled {Environment.NewLine} 发生错误：‘{ex.Message}’操作已禁用",
                                                                                                                                                                                                                                                                        .PrimaryButtonText = "OK",
                                                                                                                                                                                                                                                                        .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                                                                                    }
@@ -899,7 +953,8 @@ Exec:
 
                                                       End Sub)
                                Thread.Sleep(5000)
-                               Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
+
+                               Disable_buttons()
                            End Try
 
 
@@ -909,35 +964,40 @@ Exec:
     Private Async Sub m_read_Click(sender As Object, e As RoutedEventArgs) Handles m_read.Click
         Dim name = m_part_read.Text
         Dim path = OutImageFileDiag(name)
-        Await Task.Run(Sub()
-                           Try
-                               Dim fs As FileStream = File.Create(path)
-                               utils.ReadPartitionCustomize(fs, name, utils.GetPartitionSize(name))
-                               Dispatcher.BeginInvoke(Sub()
-                                                          Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                                                                                       .Title = "Success",
-                                                                                                                                                                                                                                                                       .Content = $"Read partition {name} successfully!{Environment.NewLine} 读取分区{name}成功！",
-                                                                                                                                                                                                                                                                       .PrimaryButtonText = "OK",
-                                                                                                                                                                                                                                                                       .DefaultButton = ContentDialogButton.Primary
-                                                                                                                                                                                                                                                                   }
-                                                          dialog.ShowAsync()
+        If path IsNot Nothing Then
+            Await Task.Run(Sub()
+                               Try
+                                   Using fs As FileStream = File.Create(path)
+                                       utils.ReadPartitionCustomize(fs, name, utils.GetPartitionSize(name))
+                                   End Using
+                                   Dispatcher.BeginInvoke(Sub()
+                                                              Dim dialog = New ContentDialog() With {
+                                                                                                                                                                                                                                                                           .Title = "Success",
+                                                                                                                                                                                                                                                                           .Content = $"Read partition {name} successfully!{Environment.NewLine} 读取分区{name}成功！",
+                                                                                                                                                                                                                                                                           .PrimaryButtonText = "OK",
+                                                                                                                                                                                                                                                                           .DefaultButton = ContentDialogButton.Primary
+                                                                                                                                                                                                                                                                       }
+                                                              dialog.ShowAsync()
 
-                                                      End Sub)
-                           Catch ex As Exception
-                               Dispatcher.BeginInvoke(Sub()
-                                                          Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                                                                                       .Title = "Error",
-                                                                                                                                                                                                                                                                       .Content = $"Exception: '{ex.Message}' Exiting... {Environment.NewLine} 发生错误：‘{ex.Message}’退出中...",
-                                                                                                                                                                                                                                                                       .PrimaryButtonText = "OK",
-                                                                                                                                                                                                                                                                       .DefaultButton = ContentDialogButton.Primary
-                                                                                                                                                                                                                                                                   }
-                                                          dialog.ShowAsync()
+                                                          End Sub)
+                               Catch ex As Exception
+                                   Dispatcher.BeginInvoke(Sub()
+                                                              Dim dialog = New ContentDialog() With {
+                                                                                                                                                                                                                                                                           .Title = "Error",
+                                                                                                                                                                                                                                                                           .Content = $"Exception: '{ex.Message}' operation disabled {Environment.NewLine} 发生错误：‘{ex.Message}’操作已禁用",
+                                                                                                                                                                                                                                                                           .PrimaryButtonText = "OK",
+                                                                                                                                                                                                                                                                           .DefaultButton = ContentDialogButton.Primary
+                                                                                                                                                                                                                                                                       }
+                                                              dialog.ShowAsync()
 
-                                                      End Sub)
-                               Thread.Sleep(5000)
-                               Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
-                           End Try
-                       End Sub)
+                                                          End Sub)
+                                   Thread.Sleep(5000)
+
+                                   Disable_buttons()
+                               End Try
+                           End Sub)
+        End If
+
     End Sub
 
     Private Async Sub m_erase_Click(sender As Object, e As RoutedEventArgs) Handles m_erase.Click
@@ -984,7 +1044,8 @@ Exec:
     Private Async Sub start_repart_Click(sender As Object, e As RoutedEventArgs) Handles start_repart.Click
         Dim XML_path_1 = xml_path.Text
         Dim repartlist As New List(Of Partition)
-        Await Task.Run(Sub() LoadPartitionsFromXml(XML_path_1, repartlist))
+        Dim content As String = File.ReadAllText(XML_path_1)
+        repartlist = SprdFlashUtils.LoadPartitionsXml(content)
         utils.Repartition(repartlist)
         Dim dialog = New ContentDialog() With {
                                                                        .Title = "Repartition command sent",
@@ -1021,13 +1082,52 @@ Exec:
             Dim parts() As String = part_list.Items(index).ToString().Split({" "c}, StringSplitOptions.RemoveEmptyEntries)
             If parts.Length >= 2 Then
                 partitionName = parts(2)
-                MessageBox.Show($"Select:{partitionName}")
+                MessageBox.Show($"Select:  {partitionName}")
             Else
                 partitionName = Nothing
             End If
         Else
             partitionName = String.Empty
         End If
+    End Sub
+
+    Private Sub read_xml_Click(sender As Object, e As RoutedEventArgs) Handles read_xml.Click
+        Dim saveDialog As New SaveFileDialog()
+        Dim filepath As String
+        ' 设置对话框属
+        saveDialog.Title = "Save XML"
+        saveDialog.Filter = "XML file（*.xml）| *.xml"
+        saveDialog.FilterIndex = 1
+        saveDialog.DefaultExt = ".xml"
+        saveDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
+        saveDialog.FileName = $"partition_{DateTime.Now:yyyyMMdd_HHmmss}.xml"
+        saveDialog.OverwritePrompt = True ' 覆盖提示
+
+        ' 显示对话框
+        If saveDialog.ShowDialog() <> True Then
+            ' 用户取消
+            AppendToOutput("Save XML file operation cancelled")
+            filepath = Nothing
+        Else
+            ' Dim filePath As String = saveDialog.FileName
+            filepath = saveDialog.FileName
+        End If
+        If filepath IsNot Nothing Then
+            Using file1 As Stream = File.Create(filepath)
+                SprdFlashUtils.SavePartitionsToXml(partitions.Item1, file1)
+            End Using
+            AppendToOutput($"Successfully save partition list to XML file, path: {filepath}")
+
+        End If
+
+    End Sub
+
+    Private Sub dmv_disable_Click(sender As Object, e As RoutedEventArgs) Handles dmv_disable.Click
+        utils.SetDmVerityStatus(False, partitions.Item1)
+    End Sub
+
+    Private Sub dmv_enable_Click(sender As Object, e As RoutedEventArgs) Handles dmv_enable.Click
+        utils.SetDmVerityStatus(True, partitions.Item1)
     End Sub
 End Class
 

@@ -9,7 +9,7 @@
         mc:Ignorable="d"
         ui:WindowHelper.UseModernWindowStyle="True"
         Loaded="Form1_Loaded"
-        Title="SpreadtrumDumpClient   Version 0.2.0.1  By Ryan Crepa" Height="765" Width="1174" Icon="/flash.png">
+        Title="SpreadtrumDumpClient   Version 1.2.3.0  By Ryan Crepa" Height="765" Width="1174" Icon="/flash.png">
     <Grid
         Background="#FFDFDEDE"
         >
@@ -38,12 +38,14 @@
                     <Label Content="Advanced   高级选项" HorizontalAlignment="Left" Margin="30,464,0,0" VerticalAlignment="Top"/>
                     <ui:ToggleSwitch Name="exec_addr" Margin="30,484,0,0" VerticalAlignment="Top" Header="Try to use CVE to skip FDL verification(brom stage only)   利用漏洞绕过FDL签名验证(仅BROM模式)"/>
                     <Label Content="CVE Binary File Address CVE可执行镜像 :" HorizontalAlignment="Left" Margin="30,544,0,0" VerticalAlignment="Top"/>
-                    <TextBox x:Name="cve_addr" HorizontalAlignment="Left" Margin="300,539,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="295"/>
+                    <TextBox x:Name="cve_addr" HorizontalAlignment="Left" Margin="300,539,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="295" Cursor="" AutomationProperties.HelpText="custom_exec_no_verify_XXXXXXXX.bin" AutomationProperties.AccessKey="custom_exec_no_verify_XXXXXXXX.bin" AutomationProperties.AcceleratorKey="custom_exec_no_verify_XXXXXXXX.bin"/>
                     <Button x:Name="select_cve" Content="..." Margin="607,539,0,0" VerticalAlignment="Top"/>
                     <ui:ToggleSwitch Name="sprd4" Header="Kick device to SPRD4  使用SPRD4模式" Margin="664,484,0,0" VerticalAlignment="Top"/>
                     <Button x:Name="connect_1" Content="CONNECT  连接" Margin="943,470,0,0" VerticalAlignment="Top" Width="143" Height="52"/>
-                    <Label Content="Wait connection time  连接等待时间 (s):" HorizontalAlignment="Left" Margin="669,537,0,0" VerticalAlignment="Top"/>
-                    <TextBox x:Name="wait_con" HorizontalAlignment="Left" Margin="669,561,0,0" TextWrapping="Wrap" Text="30" VerticalAlignment="Top" Width="120"/>
+                    <Label Content="Wait connection time  连接等待时间 (s):" HorizontalAlignment="Left" Margin="862,533,0,0" VerticalAlignment="Top"/>
+                    <TextBox x:Name="wait_con" HorizontalAlignment="Left" Margin="983,559,0,0" TextWrapping="Wrap" Text="30" VerticalAlignment="Top" Width="120"/>
+                    <TextBox x:Name="cve_addr_c" HorizontalAlignment="Left" Margin="725,539,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="120"/>
+                    <Label Content="Addr  地址" HorizontalAlignment="Left" Margin="648,545,0,0" VerticalAlignment="Top"/>
                 </Grid>
             </TabItem>
             <TabItem Header="Partition Operation  分区操作">
@@ -51,13 +53,9 @@
                     <ListBox x:Name="part_list" Width="1000" Height="450" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="5,39,0,0" SelectionChanged="part_list_SelectionChanged"/>
                     <Label Content="Please check a partition        请选择一个分区" HorizontalAlignment="Left" Margin="60,14,0,0" VerticalAlignment="Top"/>
                     <Label Content="Operation    操作：" HorizontalAlignment="Left" Margin="50,501,0,0" VerticalAlignment="Top"/>
-                    <Label Content="Write partition  刷写分区" HorizontalAlignment="Left" Margin="50,534,0,0" VerticalAlignment="Top"/>
-                    <Label Content="Image file address  镜像文件路径：" HorizontalAlignment="Left" Margin="50,561,0,0" VerticalAlignment="Top"/>
-                    <TextBox x:Name="list_file_addr" HorizontalAlignment="Left" Margin="275,554,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="255"/>
-                    <Button x:Name="list_write" Content="WRITE  刷写" Margin="609,556,0,0" VerticalAlignment="Top" Width="117" IsEnabled="False"/>
-                    <Button x:Name="list_read" Content="EXTRACT  读取分区" Margin="745,556,0,0" VerticalAlignment="Top" Width="162" IsEnabled="False"/>
-                    <Button x:Name="list_erase" Content="ERASE  擦除分区" Margin="921,556,0,0" VerticalAlignment="Top" Width="170" IsEnabled="False"/>
-                    <Button x:Name="select_list_addr" Content="..." Margin="542,554,0,0" VerticalAlignment="Top"/>
+                    <Button x:Name="list_write" Content="WRITE  刷写" Margin="74,547,0,0" VerticalAlignment="Top" Width="117" IsEnabled="False"/>
+                    <Button x:Name="list_read" Content="EXTRACT  读取分区" Margin="206,547,0,0" VerticalAlignment="Top" Width="162" IsEnabled="False"/>
+                    <Button x:Name="list_erase" Content="ERASE  擦除分区" Margin="397,547,0,0" VerticalAlignment="Top" Width="170" IsEnabled="False"/>
                 </Grid>
             </TabItem>
             <TabItem Header="Manually Operate  手动操作">
@@ -87,23 +85,21 @@
                     <Button x:Name="set_active_a" Content="Boot A partitons  启动A分区" Margin="71,84,0,0" VerticalAlignment="Top" IsEnabled="False" />
                     <Button x:Name="set_active_b" Content="Boot B partitions  启动B分区" Margin="293,84,0,0" VerticalAlignment="Top" IsEnabled="False"/>
                     <Label Content="Repartition  重新分区" HorizontalAlignment="Left" Margin="69,154,0,0" VerticalAlignment="Top"/>
-                    <Label Content="XML part info file path  XML分区表文件路径" HorizontalAlignment="Left" Margin="85,360,0,0" VerticalAlignment="Top"/>
-                    <TextBox x:Name="xml_path" HorizontalAlignment="Left" Margin="82,388,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="374"/>
-                    <Button x:Name="select_xml" Content="..." Margin="480,389,0,0" VerticalAlignment="Top"/>
-                    <Button x:Name="start_repart" Content="START  开始" Margin="83,439,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                    <TextBox x:Name="part" HorizontalAlignment="Left" Margin="67,179,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="708" Height="165" IsReadOnly="True" Text="How to make part info XML file?  怎么制作分区表文件？
-                                                                                                                     
-                             
-                             Please follow the format to make part info XML file.  请参照格式以制作XML分区表文件。                                                                                        
-                                                                                                                       An example is in the app folder.
-                                                                                                                              一个示例文件在软件目录。"/>
+                    <Label Content="XML part info file path  XML分区表文件路径" HorizontalAlignment="Left" Margin="71,206,0,0" VerticalAlignment="Top"/>
+                    <TextBox x:Name="xml_path" HorizontalAlignment="Left" Margin="71,245,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="374"/>
+                    <Button x:Name="select_xml" Content="..." Margin="458,246,0,0" VerticalAlignment="Top"/>
+                    <Button x:Name="start_repart" Content="START  开始" Margin="510,246,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                    <Button x:Name="read_xml" Content="Extract part info to a XML file (if support)  备份分区表到XML文件（如果支持）" Margin="72,294,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                    <Label Content="DM-verify Settings (if support)  DM-verify设置（如果支持）" HorizontalAlignment="Left" Margin="71,342,0,0" VerticalAlignment="Top"/>
+                    <Button x:Name="dmv_disable" Content="Disable DM-verify  禁用DM-verify" Margin="71,381,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                    <Button x:Name="dmv_enable" Content="Enable DM-verify  启用DM-verify" Margin="335,381,0,0" VerticalAlignment="Top" IsEnabled="False"/>
                 </Grid>
             </TabItem>
             <TabItem Header="Advanced Settings  高级设置">
                 <Grid Background="#FFE5E5E5">
                     <Label Content="Data block size  数据块大小" HorizontalAlignment="Left" Margin="79,42,0,0" VerticalAlignment="Top"/>
-                    <Slider x:Name="blk_size" HorizontalAlignment="Left" Margin="35,73,0,0" VerticalAlignment="Top" Width="1036" Minimum="10000" Maximum="60000" LargeChange="10000" SmallChange="10000"  Value="10000" ValueChanged="blk_size_ValueChanged" TickFrequency="10000" IsEnabled="False"/>
-                    <Label x:Name="size_con" Content="10000" HorizontalAlignment="Left" Margin="1112,75,0,0" VerticalAlignment="Top"/>
+                    <Slider x:Name="blk_size" HorizontalAlignment="Left" Margin="35,73,0,0" VerticalAlignment="Top" Width="1036" Minimum="10000" Maximum="60000" LargeChange="10000" SmallChange="10000"  Value="60000" ValueChanged="blk_size_ValueChanged" TickFrequency="10000" IsEnabled="False"/>
+                    <Label x:Name="size_con" Content="60000" HorizontalAlignment="Left" Margin="1105,79,0,0" VerticalAlignment="Top"/>
                 </Grid>
             </TabItem>
             <TabItem Header="About  关于">
@@ -119,7 +115,7 @@
                              
                              
                              
-                             Version 0.1.1.0
+                             Version 1.2.3.0
                              
                              
                              
@@ -166,7 +162,7 @@
                              
                              
                              
-                             Core version: 1.0.1.0
+                             Core version: 1.2.0.0
                              
                              
                              
@@ -222,7 +218,7 @@
                              
                              
                              
-                             1.Abandon the call to SPD DUMP and use SPRDClientCore
+                                                            1.Abandon the call to SPD DUMP and use SPRDClientCore
                              
                              
                              
@@ -234,7 +230,222 @@
                              
                              
                              
-                             2.Fix the function of CVE booting" VerticalAlignment="Top" Width="1084" Height="557" IsReadOnly="True" FontSize="17"/>
+                             2.Fix the function of CVE booting
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             ---v0.2.1.0---
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             1.Fix some bugs
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             ---v1.0.1.0---
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             1.Add operation speed and remaining time display
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             2.Fix some bugs
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             ---v1.1.0.0---
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             1.Fix some bugs
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             ---v1.1.2.0---
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             1.Fix some bugs
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             ---v1.2.1.0---
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             1.Update SPRDClientCore to 1.2.0.0 to fix flashing bug.
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             2. Improved the repartitioning function and added the function of setting DM-verify
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             3. fix some bugs
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             ---v1.2.2.0---
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             1.Optimize user experience
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             2.Fix some bugs
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             ---v1.2.3.0---
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             
+                             1. Fix program crash logic" VerticalAlignment="Top" Width="1084" Height="557" IsReadOnly="True" FontSize="13"/>
                 </Grid>
             </TabItem>
             <TabItem Header="Log  日志">
@@ -252,6 +463,9 @@
         <Button x:Name="reboot" Content="REBOOT  重启" Margin="516,684,0,0" VerticalAlignment="Top" IsEnabled="False"/>
         <Button x:Name="recovery" Content="BOOT TO RECOVERY  重启到恢复模式" Margin="634,684,0,0" VerticalAlignment="Top" IsEnabled="False"/>
         <Button x:Name="fastboot" Content="BOOT TO FASTBOOT  重启到线刷模式" Margin="902,684,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+        <Label x:Name="percent" Content="0%" HorizontalAlignment="Left" Margin="130,680,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="speedtext" Content="0 MB/s" HorizontalAlignment="Left" Margin="160,680,0,0" VerticalAlignment="Top"/>
+        <Label x:Name="timetext" Content="Need 剩余: 0.00s" HorizontalAlignment="Left" Margin="240,680,0,0" VerticalAlignment="Top"/>
     </Grid>
 
 </Window>

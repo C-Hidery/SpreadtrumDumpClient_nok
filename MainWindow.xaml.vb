@@ -41,6 +41,8 @@ Public Class MainWindow
     Public isSPRD4NoFDL As Boolean = False
     Public cmd As CmdInvoke
 
+    Private CoreVer As String = "1.2.0.0"
+    Private cts As New CancellationTokenSource()
     Private Sub Form1_Loaded(sender As Object, e As RoutedEventArgs)
 start_1:
 
@@ -68,48 +70,62 @@ start_1:
         Write_con("Waiting for connection")
         connect_1.IsEnabled = False
         Dim sprd4_1 = sprd4.IsOn
+        ' Dim onetime = one_time.IsOn
         Dim stage As (Stages, Stages)
         Dim result
         Await Task.Run(Sub()
 
                            Try
                                AppendToOutput($"[{DateTime.Now:HH:mm:ss}] Begin to boot...({timeout2}s)")
-                               AppendToOutput($"[{DateTime.Now:HH:mm:ss}] Based on SPRDClientCore 1.2.0.0")
-                               port = SprdProtocolHandler.FindComPort(timeout:=timeout1)
-                               DEG_LOG($"Find port: {port}", "I")
-                               Write_con($"Find port {port} , connecting...")
-                               Dim handler As New SprdProtocolHandler(port, New HdlcEncoder())
-                               utils = New SprdFlashUtils(handler)
-                               Dim monitor As New ComPortMonitor(port)
+                               AppendToOutput($"[{DateTime.Now:HH:mm:ss}] Based on SPRDClientCore {CoreVer}")
+                               If Not sprd4_1 Then '
+                                   port = SprdProtocolHandler.FindComPort(timeout:=timeout1)
+                                   DEG_LOG($"Find port: {port}", "I")
+                                   Write_con($"Find port {port} , connecting...")
+                                   Dim handler As New SprdProtocolHandler(port, New HdlcEncoder())
+                                   utils = New SprdFlashUtils(handler)
+                                   Dim monitor As New ComPortMonitor(port)
 
-                               monitor.SetDisconnectedAction(Sub()
-                                                                 monitor.Stop()
+                                   monitor.SetDisconnectedAction(Sub()
+                                                                     monitor.Stop()
 
-                                                                 Disable_buttons()
-                                                             End Sub)
-                               AddHandler utils.UpdatePercentage, AddressOf UpdateProgressInvoke
-                               AddHandler utils.UpdateStatus, AddressOf UpdateOnLog
-                               AddHandler utils.Log, AddressOf UpdateOnLog
-                               AddHandler utils.UpdateWinSpeed, AddressOf UpdateSpeed
-                               AddHandler utils.UpdateWinTime, AddressOf UpdateTime
-                               If Not sprd4_1 Then
+                                                                     Disable_buttons()
+                                                                 End Sub)
+                                   AddHandler utils.UpdatePercentage, AddressOf UpdateProgressInvoke
+                                   AddHandler utils.UpdateStatus, AddressOf UpdateOnLog
+                                   AddHandler utils.Log, AddressOf UpdateOnLog
+                                   AddHandler utils.UpdateWinSpeed, AddressOf UpdateSpeed
+                                   AddHandler utils.UpdateWinTime, AddressOf UpdateTime
                                    stage = utils.ConnectToDevice()
                                Else
-                                   Dispatcher.BeginInvoke(Sub()
-                                                              Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                                 .Title = "Kicking device to BROM mode",
-                                                                                                                                                                                                                 .Content = $"Program kicked device to BROM mode, reconnecting...{Environment.NewLine} 已将设备踢进BROM模式，重连中...",
-                                                                                                                                                                                                                 .PrimaryButtonText = "OK",
-                                                                                                                                                                                                                 .DefaultButton = ContentDialogButton.Primary
-                                                                                                                                                                                                             }
-                                                              dialog.ShowAsync()
-                                                          End Sub)
+                                   Dim handler
+                                   AppendToOutput($"[{DateTime.Now:HH:mm:ss}] SPRD4 mode enabled.")
 
-                                   SprdFlashUtils.ChangeDiagnosticMode(handler)
+                                   handler = SprdFlashUtils.ChangeDiagnosticMode()
+                                   ' End If
+
+                                   ' Console.WriteLine($"<waiting for connection,mode:")
+                                   Try
+                                       port = SprdProtocolHandler.FindComPort(timeout:=timeout2 * 1000)
+                                   Catch ex As Exception
+                                       DEG_LOG($"Failed to connect to device: {ex.Message}", "E")
+                                       Exit Sub
+                                   End Try
+                                   Dim monitor As New ComPortMonitor(port)
+                                   utils = New SprdFlashUtils(handler)
+                                   monitor.SetDisconnectedAction(Sub()
+                                                                     monitor.Stop()
+                                                                     Disable_buttons()
+                                                                 End Sub)
+                                   AddHandler utils.UpdatePercentage, AddressOf UpdateProgressInvoke
+                                   AddHandler utils.UpdateStatus, AddressOf UpdateOnLog
+                                   AddHandler utils.Log, AddressOf UpdateOnLog
+                                   AddHandler utils.UpdateWinSpeed, AddressOf UpdateSpeed
+                                   AddHandler utils.UpdateWinTime, AddressOf UpdateTime
                                    stage = utils.ConnectToDevice()
-
-
                                End If
+
+
 
                                Thread.Sleep(1000)
                                device_mode = stage.Item2
@@ -165,22 +181,8 @@ start_1:
                                Thread.Sleep(5000)
                                '超时须退出而不是继续
                                Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
-                           Catch ex2 As UnexceptedResponseException
-                               Dispatcher.BeginInvoke(Sub()
-                                                          Dim dialog = New ContentDialog() With {
-                                                                                                                                                    .Title = "Incorrect or empty response",
-                                                                                                                                                    .Content = $"Can not connect to device: Wrong response, exiting...{Environment.NewLine} 连接失败:错误的响应，退出中..{Environment.NewLine} {ex2.Message}",
-                                                                                                                                                    .PrimaryButtonText = "OK",
-                                                                                                                                                    .DefaultButton = ContentDialogButton.Primary
-                                                                                                                                                }
-                                                          dialog.ShowAsync()
 
-                                                      End Sub)
-
-                               Thread.Sleep(5000)
-
-                               Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(1))
-                           Catch ex3 As System.IO.IOException
+                           Catch ex3 As Exception
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
                                                                                                                                                     .Title = "Emm",
@@ -272,7 +274,6 @@ Exec:
                                End Sub)
 
     End Sub
-
 
 
 
@@ -413,19 +414,7 @@ Exec:
                                        Init_fdl2()
                                    End If
 
-                               Catch ex1 As UnexceptedResponseException
-                                   Dispatcher.BeginInvoke(Sub()
-                                                              Dim dialog = New ContentDialog() With {
-                                                                                                                                                                                                             .Title = "Can not execute",
-                                                                                                                                                                                                             .Content = $"Response not correct, operation disabled{Environment.NewLine} 响应不正确,操作已禁用{Environment.NewLine}{ex1.Message}",
-                                                                                                                                                                                                             .PrimaryButtonText = "OK",
-                                                                                                                                                                                                             .DefaultButton = ContentDialogButton.Primary
-                                                                                                                                                                                                         }
-                                                              dialog.ShowAsync()
-                                                          End Sub)
-                                   Thread.Sleep(5000)
 
-                                   Disable_buttons()
                                Catch ex2 As Exception
                                    Dispatcher.BeginInvoke(Sub()
                                                               Dim dialog = New ContentDialog() With {
@@ -829,21 +818,21 @@ Exec:
         If filepath Is Nothing Then
             Exit Sub
         End If
-        Await Task.Run(Sub()
+        Await Task.Run(Async Sub()
                            Try
                                Using fs As FileStream = File.OpenRead(filepath)
-                                   utils.WritePartition(name, fs)
+                                   Await utils.WritePartitionAsync(name, fs, cts.Token)
                                End Using
-                               Dispatcher.BeginInvoke(Sub()
-                                                          Dim dialog = New ContentDialog() With {
+                               Await Dispatcher.BeginInvoke(Sub()
+                                                                Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                        .Title = "Success",
                                                                                                                                                                                                                                                                        .Content = $"Write partition {name} successfully!{Environment.NewLine} 刷写分区{name}成功！",
                                                                                                                                                                                                                                                                        .PrimaryButtonText = "OK",
                                                                                                                                                                                                                                                                        .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                                                                                    }
-                                                          dialog.ShowAsync()
+                                                                dialog.ShowAsync()
 
-                                                      End Sub)
+                                                            End Sub)
                            Catch ex As Exception
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
@@ -868,21 +857,21 @@ Exec:
         Dim name = partitionName
         Dim path = OutImageFileDiag(name)
         If path IsNot Nothing Then
-            Await Task.Run(Sub()
+            Await Task.Run(Async Sub()
                                Try
                                    Using fs As FileStream = File.Create($"{path}")
-                                       utils.ReadPartitionCustomize(fs, name, utils.GetPartitionSize(name))
+                                       Await utils.ReadPartitionCustomizeAsync(fs, name, utils.GetPartitionSize(name), cts.Token)
                                    End Using
-                                   Dispatcher.BeginInvoke(Sub()
-                                                              Dim dialog = New ContentDialog() With {
+                                   Await Dispatcher.BeginInvoke(Sub()
+                                                                    Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                            .Title = "Success",
                                                                                                                                                                                                                                                                            .Content = $"Read partition {name} successfully!{Environment.NewLine} 读取分区{name}成功！",
                                                                                                                                                                                                                                                                            .PrimaryButtonText = "OK",
                                                                                                                                                                                                                                                                            .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                                                                                        }
-                                                              dialog.ShowAsync()
+                                                                    dialog.ShowAsync()
 
-                                                          End Sub)
+                                                                End Sub)
                                Catch ex As Exception
                                    Dispatcher.BeginInvoke(Sub()
                                                               Dim dialog = New ContentDialog() With {
@@ -926,21 +915,21 @@ Exec:
     Private Async Sub m_write_Click(sender As Object, e As RoutedEventArgs) Handles m_write.Click
         Dim name = m_part_flash.Text
         Dim filepath = m_file_path.Text
-        Await Task.Run(Sub()
+        Await Task.Run(Async Sub()
                            Try
                                Using fs As FileStream = File.OpenRead(filepath)
-                                   utils.WritePartition(name, fs)
+                                   Await utils.WritePartitionAsync(name, fs, cts.Token)
                                End Using
-                               Dispatcher.BeginInvoke(Sub()
-                                                          Dim dialog = New ContentDialog() With {
+                               Await Dispatcher.BeginInvoke(Sub()
+                                                                Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                        .Title = "Success",
                                                                                                                                                                                                                                                                        .Content = $"Write partition {name} successfully!{Environment.NewLine} 刷写分区{name}成功！",
                                                                                                                                                                                                                                                                        .PrimaryButtonText = "OK",
                                                                                                                                                                                                                                                                        .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                                                                                    }
-                                                          dialog.ShowAsync()
+                                                                dialog.ShowAsync()
 
-                                                      End Sub)
+                                                            End Sub)
                            Catch ex As Exception
                                Dispatcher.BeginInvoke(Sub()
                                                           Dim dialog = New ContentDialog() With {
@@ -965,21 +954,21 @@ Exec:
         Dim name = m_part_read.Text
         Dim path = OutImageFileDiag(name)
         If path IsNot Nothing Then
-            Await Task.Run(Sub()
+            Await Task.Run(Async Sub()
                                Try
                                    Using fs As FileStream = File.Create(path)
-                                       utils.ReadPartitionCustomize(fs, name, utils.GetPartitionSize(name))
+                                       Await utils.ReadPartitionCustomizeAsync(fs, name, utils.GetPartitionSize(name), cts.Token)
                                    End Using
-                                   Dispatcher.BeginInvoke(Sub()
-                                                              Dim dialog = New ContentDialog() With {
+                                   Await Dispatcher.BeginInvoke(Sub()
+                                                                    Dim dialog = New ContentDialog() With {
                                                                                                                                                                                                                                                                            .Title = "Success",
                                                                                                                                                                                                                                                                            .Content = $"Read partition {name} successfully!{Environment.NewLine} 读取分区{name}成功！",
                                                                                                                                                                                                                                                                            .PrimaryButtonText = "OK",
                                                                                                                                                                                                                                                                            .DefaultButton = ContentDialogButton.Primary
                                                                                                                                                                                                                                                                        }
-                                                              dialog.ShowAsync()
+                                                                    dialog.ShowAsync()
 
-                                                          End Sub)
+                                                                End Sub)
                                Catch ex As Exception
                                    Dispatcher.BeginInvoke(Sub()
                                                               Dim dialog = New ContentDialog() With {
@@ -1128,6 +1117,14 @@ Exec:
 
     Private Sub dmv_enable_Click(sender As Object, e As RoutedEventArgs) Handles dmv_enable.Click
         utils.SetDmVerityStatus(True, partitions.Item1)
+    End Sub
+
+    Private Sub Form1_Closing(sender As Object, e As ComponentModel.CancelEventArgs)
+        cts.Cancel()
+    End Sub
+
+    Private Sub Form1_Closed(sender As Object, e As EventArgs)
+        cts.Cancel()
     End Sub
 End Class
 

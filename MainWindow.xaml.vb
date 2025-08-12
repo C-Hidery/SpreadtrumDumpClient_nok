@@ -739,32 +739,28 @@ Exec:
 
     Private Sub poweroff_Click(sender As Object, e As RoutedEventArgs) Handles poweroff.Click
         utils.ShutdownDevice()
-        Thread.Sleep(1000)
         'exp_log_Click(sender:=Nothing, e:=Nothing)
-        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
+        Application.Current.Shutdown(0)
     End Sub
 
     Private Sub reboot_Click(sender As Object, e As RoutedEventArgs) Handles reboot.Click
         utils.PowerOnDevice()
-        Thread.Sleep(1000)
         'exp_log_Click(sender:=Nothing, e:=Nothing)
-        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
+        Application.Current.Shutdown(0)
     End Sub
 
     Private Sub recovery_Click(sender As Object, e As RoutedEventArgs) Handles recovery.Click
         utils.ResetToCustomMode(CustomModesToReset.Recovery)
         utils.PowerOnDevice()
         'exp_log_Click(sender:=Nothing, e:=Nothing)
-        Thread.Sleep(1000)
-        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
+        Application.Current.Shutdown(0)
     End Sub
 
     Private Sub fastboot_Click(sender As Object, e As RoutedEventArgs) Handles fastboot.Click
         utils.ResetToCustomMode(CustomModesToReset.Fastboot)
         utils.PowerOnDevice()
         ' exp_log_Click(sender:=Nothing, e:=Nothing)
-        Thread.Sleep(1000)
-        Dispatcher.BeginInvoke(Sub() Application.Current.Shutdown(0))
+        Application.Current.Shutdown(0)
     End Sub
     Public Function OutImageFileDiag(name As String)
         Dim saveDialog As New SaveFileDialog()
